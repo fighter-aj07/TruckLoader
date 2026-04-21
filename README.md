@@ -4,68 +4,37 @@ A high-performance REST API that optimizes truck loading to maximize carrier pay
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         CLIENT REQUEST                          │
-│  POST /api/v1/load-optimizer/optimize                           │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    FastAPI Application                          │
-│  (main.py)                                                      │
-│  ├─ Health Check (/health)                                     │
-│  └─ Optimization Endpoint (/api/v1/load-optimizer/optimize)   │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              Request Validation (Pydantic Models)               │
-│  (models.py)                                                    │
-│  ├─ Truck validation                                           │
-│  └─ Order validation (dates, weights, hazmat flags)            │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  Constraint Validation                          │
-│  (constraints.py)                                              │
-│  ├─ Weight/Volume capacity checks                             │
-│  ├─ Route compatibility (origin/destination)                  │
-│  ├─ Hazmat isolation (alone only)                             │
-│  └─ Time window validation (pickup ≤ delivery)               │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                 Optimization Engine                             │
-│  (optimizer.py) - Choose Algorithm:                            │
-│  ├─ optimize() - DP Bitmask (default)                         │
-│  ├─ optimize_backtracking() - Recursive backtracking          │
-│  ├─ optimize_pareto() - Multi-objective (Pareto)              │
-│  └─ optimize_weighted() - Configurable weights                │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              Optimization Result                               │
-│  • Selected order IDs                                          │
-│  • Total payout (cents)                                        │
-│  • Weight & volume used                                        │
-│  • Utilization percentages                                     │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  JSON Response (200 OK)                         │
-│  {                                                              │
-│    "truck_id": "...",                                          │
-│    "selected_order_ids": [...],                                │
-│    "total_payout_cents": 430000,                               │
-│    "total_weight_lbs": 30000,                                  │
-│    "total_volume_cuft": 2100                                   │
-│  }                                                              │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["🌐 CLIENT REQUEST<br/>POST /api/v1/load-optimizer/optimize"] -->|JSON| B["FastAPI Application<br/>main.py"]
+    B --> C["Request Validation<br/>Pydantic Models<br/>models.py"]
+    C --> D{Valid?}
+    D -->|No| E["❌ 400 Bad Request<br/>Invalid input"]
+    D -->|Yes| F["Constraint Validation<br/>constraints.py<br/>• Weight/Volume<br/>• Route Compatibility<br/>• Hazmat Isolation<br/>• Time Windows"]
+    F --> G{Feasible?}
+    G -->|No| H["✓ 200 OK<br/>Empty result"]
+    G -->|Yes| I["Optimization Engine<br/>optimizer.py<br/>4 Algorithms Available"]
+    I --> J["choose Algorithm"]
+    J -->|Default| K1["DP Bitmask<br/>O(2^n)"]
+    J -->|Alternative| K2["Backtracking<br/>O(2^n)"]
+    J -->|Multi-obj| K3["Pareto<br/>O(2^n)"]
+    J -->|Configurable| K4["Weighted<br/>O(2^n)"]
+    K1 --> L["🎯 Optimal Solution"]
+    K2 --> L
+    K3 --> L
+    K4 --> L
+    L --> M["JSON Response<br/>✓ 200 OK<br/>selected_order_ids<br/>total_payout_cents<br/>total_weight_lbs<br/>total_volume_cuft"]
+    E --> N["Client"]
+    H --> N
+    M --> N
+    
+    style A fill:#4A90E2,color:#fff
+    style B fill:#2E7D32,color:#fff
+    style C fill:#F57C00,color:#fff
+    style F fill:#F57C00,color:#fff
+    style I fill:#7B1FA2,color:#fff
+    style L fill:#C41C3B,color:#fff
+    style M fill:#2E7D32,color:#fff
 ```
 
 ### Algorithm Comparison
