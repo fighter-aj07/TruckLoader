@@ -2,6 +2,81 @@
 
 A high-performance REST API that optimizes truck loading to maximize carrier payout while respecting weight, volume, and compatibility constraints.
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CLIENT REQUEST                          │
+│  POST /api/v1/load-optimizer/optimize                           │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    FastAPI Application                          │
+│  (main.py)                                                      │
+│  ├─ Health Check (/health)                                     │
+│  └─ Optimization Endpoint (/api/v1/load-optimizer/optimize)   │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Request Validation (Pydantic Models)               │
+│  (models.py)                                                    │
+│  ├─ Truck validation                                           │
+│  └─ Order validation (dates, weights, hazmat flags)            │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  Constraint Validation                          │
+│  (constraints.py)                                              │
+│  ├─ Weight/Volume capacity checks                             │
+│  ├─ Route compatibility (origin/destination)                  │
+│  ├─ Hazmat isolation (alone only)                             │
+│  └─ Time window validation (pickup ≤ delivery)               │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 Optimization Engine                             │
+│  (optimizer.py) - Choose Algorithm:                            │
+│  ├─ optimize() - DP Bitmask (default)                         │
+│  ├─ optimize_backtracking() - Recursive backtracking          │
+│  ├─ optimize_pareto() - Multi-objective (Pareto)              │
+│  └─ optimize_weighted() - Configurable weights                │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Optimization Result                               │
+│  • Selected order IDs                                          │
+│  • Total payout (cents)                                        │
+│  • Weight & volume used                                        │
+│  • Utilization percentages                                     │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                  JSON Response (200 OK)                         │
+│  {                                                              │
+│    "truck_id": "...",                                          │
+│    "selected_order_ids": [...],                                │
+│    "total_payout_cents": 430000,                               │
+│    "total_weight_lbs": 30000,                                  │
+│    "total_volume_cuft": 2100                                   │
+│  }                                                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Algorithm Comparison
+
+| Algorithm | Best For | Time | Space |
+|-----------|----------|------|-------|
+| **DP Bitmask** | Single best solution | O(2^n) | O(1) |
+| **Backtracking** | Alternative approach | O(2^n) | O(n) |
+| **Pareto** | Multi-objective analysis | O(2^n) | O(2^n) |
+| **Weighted** | Configurable objectives | O(2^n) | O(1) |
+
 ## Features
 
 - **Optimal Load Selection**: Uses dynamic programming with bitmask to find the best combination of orders in <800ms for up to 22 orders
